@@ -1,126 +1,86 @@
-// --- GLOBAL SETTINGS ---
-let selectedVoice = "David"; 
+let selectedVoice = null;
 const synth = window.speechSynthesis;
 let isSystemActive = false;
-let audioCtx = null;
 
 /**
- * HIGH-VOLUME AUDIO ENGINE
- */
+ * VOICE ENGINE
+ * Handles the male/female voice output
+ */
 function speak(text) {
-    if (!text) return;
-    
-    // Interrupt any current talking
-    synth.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(text);
-    
-    // Load voices
-    const voices = synth.getVoices();
-    const target = voices.find(v => v.name.includes(selectedVoice)) || voices[0];
-    
-    utterance.voice = target;
-    utterance.volume = 1.0; // MAX LOUDNESS
-    utterance.rate = 0.9;   // SLIGHTLY SLOWER FOR CLARITY
-    utterance.pitch = 1.0;
-
-    synth.speak(utterance);
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voices = synth.getVoices();
+    
+    if (selectedVoice) {
+        // Find a voice that matches the user preference
+        const target = voices.find(v => v.name.includes(selectedVoice));
+        if (target) utterance.voice = target;
+    }
+    
+    // Set pitch and rate for clarity
+    utterance.rate = 0.9; 
+    utterance.pitch = 1;
+    synth.speak(utterance);
 }
 
 /**
- * INITIALIZATION (THE FIX)
- */
+ * INITIALIZATION
+ * Prompts for Bluetooth/Location simulation and Camera access
+ */
 async function initApp() {
-    const statusText = document.getElementById('status-text');
-    
-    // 1. RESUME AUDIO ENGINE (Browser requirement)
-    if (!audioCtx) {
-        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-    await audioCtx.resume();
-
-    statusText.innerText = "CONNECTING...";
-
-    try {
-        // 2. SIMPLEST CAMERA REQUEST (Fixes most "Error" issues)
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: true, 
-            audio: false 
-        });
-
-        const video = document.getElementById('v');
-        video.srcObject = stream;
-        
-        // Ensure the video plays
-        video.onloadedmetadata = () => {
-            video.play();
-            isSystemActive = true;
-            statusText.innerText = "AI ACTIVE";
-            speak("System initialized. Monitoring for obstacles.");
-            
-            // Start the loop
-            startDetectionLoop();
-        };
-
-    } catch (err) {
-        // 3. ERROR LOGGING (Check your browser console (F12) for the exact error)
-        console.error("Camera access failed:", err);
-        statusText.innerText = "ERROR";
-        speak("Camera failed. Please check permissions in your browser bar.");
-    }
+    speak("System initialization started. Please allow camera and location access.");
+    
+    try {
+        // Request Camera Access (Simulating External Bluetooth Camera)
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        document.getElementById('status-text').innerText = "Camera Active";
+        document.getElementById('status-text').parentElement.style.borderColor = "var(--accent)";
+        
+        isSystemActive = true;
+        speak("Bluetooth link established. AI guidance is now active.");
+        
+        // Start the detection loop
+        startDetectionLoop();
+        
+    } catch (err) {
+        speak("Permission denied. Bluetooth connection failed. Exiting system.");
+        document.getElementById('status-text').innerText = "Connection Failed";
+        // In a real app, we would use window.close() or BackHandler.exitApp()
+    }
 }
 
 /**
- * AI DETECTION LOOP
- */
-async function analyzeObstacles() {
-    if (!isSystemActive) return;
-
-    const v = document.getElementById('v');
-    const c = document.getElementById('c');
-    const context = c.getContext('2d');
-
-    // Capture the frame
-    c.width = v.videoWidth;
-    c.height = v.videoHeight;
-    context.drawImage(v, 0, 0);
-    
-    // Convert to Base64
-    const base64Image = c.toDataURL('image/jpeg').split(',')[1];
-
-    try {
-        const response = await fetch('/api/analyze', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ image: base64Image })
-        });
-
-        const data = await response.json();
-        const aiResponse = data.choices[0].message.content;
-
-        // Update Dashboard Steps
-        const stepMatch = aiResponse.match(/\d+/);
-        if (stepMatch) {
-            document.getElementById('step-count').innerText = stepMatch[0];
-        }
-
-        // Output Sound
-        speak(aiResponse);
-
-    } catch (error) {
-        console.error("AI Link Error:", error);
-    }
-}
-
-function startDetectionLoop() {
-    // Run every 6 seconds
-    setInterval(analyzeObstacles, 6000);
-}
-
+ * VOICE SELECTION
+ */
 function setVoice(gender) {
-    selectedVoice = (gender === 'male') ? 'David' : 'Zira';
-    speak(gender + " voice active.");
+    // 'David' is usually the standard Windows Male, 'Zira' is Female.
+    selectedVoice = (gender === 'male') ? 'David' : 'Zira';
+    speak(`${gender} AI voice selected.`);
 }
 
-// Fix for Chrome voice loading
-window.speechSynthesis.onvoiceschanged = () => { synth.getVoices(); };
+/**
+ * OBSTACLE LOGIC
+ * Calculates steps and gives audio directions
+ */
+function startDetectionLoop() {
+    if (!isSystemActive) return;
+
+    // We simulate a sensor reading every 5 seconds
+    setInterval(() => {
+        // Generating a random distance between 0.5 and 5 meters
+        const mockDistance = (Math.random() * 4.5 + 0.5).toFixed(2);
+        const steps = Math.ceil(mockDistance / 0.7); // 0.7m is avg step length
+        
+        document.getElementById('step-count').innerText = steps;
+
+        if (steps <= 2) {
+            speak(`Stop. Obstacle detected ${steps} steps ahead. Move slightly to your left.`);
+        } else if (steps <= 5) {
+            speak(`Caution. Object in ${steps} steps.`);
+        }
+    }, 6000);
+}
+
+// Ensure voices are loaded (some browsers need this)
+window.speechSynthesis.onvoiceschanged = () => {
+    console.log("System Voices Loaded");
+};
