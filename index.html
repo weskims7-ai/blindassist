@@ -3,54 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VisionGuide AI | Dashboard</title>
+    <title>VisionGuide AI</title>
     <link rel="stylesheet" href="style.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
-    <div class="mesh-gradient"></div>
-    <div class="overlay"></div>
-
-    <div class="app-wrapper">
-        <header class="main-header">
-            <h1 aria-label="Vision Guide AI">Vision<span>Guide</span> AI</h1>
-            <div class="ai-status">
-                <span class="pulse-ring"></span>
-                <p id="status-text">System Standby</p>
-            </div>
-        </header>
-
-        <section class="tile-grid">
-            <button onclick="initApp()" class="glass-card main-tile float-1" aria-label="Setup Device">
-                <div class="icon">📡</div>
+    <div class="background-gradient"></div>
+    
+    <main class="glass-container">
+        <h1 aria-label="Vision Guide AI">VisionGuide AI</h1>
+        
+        <div class="tile-grid">
+            <button onclick="initApp()" class="tile float-1" id="setup-btn">
                 <h2>Initialize</h2>
-                <p>Sync Bluetooth Camera</p>
+                <p>Bluetooth & Location</p>
             </button>
 
-            <div class="voice-selection">
-                <button onclick="setVoice('male')" class="glass-card voice-tile float-2">
-                    <div class="icon">👤</div>
-                    <h3>Male AI</h3>
-                </button>
-                <button onclick="setVoice('female')" class="glass-card voice-tile float-3">
-                    <div class="icon">👩</div>
-                    <h3>Female AI</h3>
-                </button>
-            </div>
+            <button onclick="setVoice('male')" class="tile float-2">
+                <h2>Male AI</h2>
+                <p>Select Voice</p>
+            </button>
 
-            <div class="glass-card output-tile float-1">
-                <div class="step-counter">
-                    <span id="step-count">0</span>
-                    <label>Steps to Obstacle</label>
-                </div>
-                <div class="visualizer">
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                    <div class="bar"></div>
-                </div>
+            <button onclick="setVoice('female')" class="tile float-3">
+                <h2>Female AI</h2>
+                <p>Select Voice</p>
+            </button>
+            
+            <div class="tile status-tile float-1" id="status">
+                <h2>Status</h2>
+                <p id="status-text">Waiting for Setup...</p>
             </div>
-        </section>
-    </div>
+        </div>
+    </main>
 
     <script src="script.js"></script>
 </body>
