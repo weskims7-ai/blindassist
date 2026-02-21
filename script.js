@@ -1,90 +1,77 @@
-// --- CONFIGURATION ---
+// --- GLOBAL SETTINGS ---
 let selectedVoice = "David"; 
 const synth = window.speechSynthesis;
 let isSystemActive = false;
 let audioCtx = null;
 
 /**
- * LOUD AUDIO ENGINE
+ * HIGH-VOLUME AUDIO ENGINE
  */
 function speak(text) {
     if (!text) return;
-    synth.cancel(); // Interrupt old messages for safety
-
-    // Wake-up tone for Bluetooth
-    if (audioCtx && audioCtx.state === 'running') {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.frequency.value = 880;
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.1);
-    }
+    
+    // Interrupt any current talking
+    synth.cancel();
 
     const utterance = new SpeechSynthesisUtterance(text);
-    const voices = synth.getVoices();
-    utterance.voice = voices.find(v => v.name.includes(selectedVoice)) || voices[0];
     
-    // Maximized for outdoor/Bluetooth use
-    utterance.volume = 1.0; 
-    utterance.rate = 0.85; 
+    // Load voices
+    const voices = synth.getVoices();
+    const target = voices.find(v => v.name.includes(selectedVoice)) || voices[0];
+    
+    utterance.voice = target;
+    utterance.volume = 1.0; // MAX LOUDNESS
+    utterance.rate = 0.9;   // SLIGHTLY SLOWER FOR CLARITY
     utterance.pitch = 1.0;
 
     synth.speak(utterance);
 }
 
 /**
- * INITIALIZATION (Fixed Camera & Audio Logic)
+ * INITIALIZATION (THE FIX)
  */
 async function initApp() {
-    const statusEl = document.getElementById('status-text');
+    const statusText = document.getElementById('status-text');
     
-    // 1. Force Audio Wake-up
+    // 1. RESUME AUDIO ENGINE (Browser requirement)
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
-    if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-    }
+    await audioCtx.resume();
 
-    statusEl.innerText = "STARTING...";
-    speak("Initializing camera. Please look for a permission popup.");
-
-    // 2. Flexible Camera Constraints
-    const constraints = {
-        video: {
-            width: { ideal: 640 },
-            height: { ideal: 480 },
-            facingMode: "environment" // Try back camera, falls back to front
-        }
-    };
+    statusText.innerText = "CONNECTING...";
 
     try {
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        // 2. SIMPLEST CAMERA REQUEST (Fixes most "Error" issues)
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+            video: true, 
+            audio: false 
+        });
+
         const video = document.getElementById('v');
         video.srcObject = stream;
         
-        // Ensure video actually starts playing
+        // Ensure the video plays
         video.onloadedmetadata = () => {
             video.play();
             isSystemActive = true;
-            statusEl.innerText = "AI ACTIVE";
-            statusEl.parentElement.style.borderColor = "#00f2ff";
-            speak("System ready. Vision monitoring is now live.");
+            statusText.innerText = "AI ACTIVE";
+            speak("System initialized. Monitoring for obstacles.");
+            
+            // Start the loop
             startDetectionLoop();
         };
 
     } catch (err) {
-        console.error("Camera Error:", err);
-        statusEl.innerText = "CAMERA ERROR";
-        speak("Camera failed. Please ensure you are using HTTPS and have granted permissions.");
+        // 3. ERROR LOGGING (Check your browser console (F12) for the exact error)
+        console.error("Camera access failed:", err);
+        statusText.innerText = "ERROR";
+        speak("Camera failed. Please check permissions in your browser bar.");
     }
 }
 
 /**
- * AI DETECTION
+ * AI DETECTION LOOP
  */
 async function analyzeObstacles() {
     if (!isSystemActive) return;
@@ -93,11 +80,13 @@ async function analyzeObstacles() {
     const c = document.getElementById('c');
     const context = c.getContext('2d');
 
-    // Capture Frame
-    c.width = v.videoWidth || 640;
-    c.height = v.videoHeight || 480;
+    // Capture the frame
+    c.width = v.videoWidth;
+    c.height = v.videoHeight;
     context.drawImage(v, 0, 0);
-    const base64Image = c.toDataURL('image/jpeg', 0.7).split(',')[1];
+    
+    // Convert to Base64
+    const base64Image = c.toDataURL('image/jpeg').split(',')[1];
 
     try {
         const response = await fetch('/api/analyze', {
@@ -107,30 +96,31 @@ async function analyzeObstacles() {
         });
 
         const data = await response.json();
-        
-        if (data.choices && data.choices[0]) {
-            const aiDescription = data.choices[0].message.content;
-            
-            // Update Step Display
-            const steps = aiDescription.match(/\d+/);
-            if (steps) document.getElementById('step-count').innerText = steps[0];
+        const aiResponse = data.choices[0].message.content;
 
-            speak(aiDescription);
+        // Update Dashboard Steps
+        const stepMatch = aiResponse.match(/\d+/);
+        if (stepMatch) {
+            document.getElementById('step-count').innerText = stepMatch[0];
         }
+
+        // Output Sound
+        speak(aiResponse);
+
     } catch (error) {
-        console.error("AI Fetch Error:", error);
+        console.error("AI Link Error:", error);
     }
 }
 
 function startDetectionLoop() {
-    // Run every 7 seconds for stability
-    setInterval(analyzeObstacles, 7000);
+    // Run every 6 seconds
+    setInterval(analyzeObstacles, 6000);
 }
 
 function setVoice(gender) {
     selectedVoice = (gender === 'male') ? 'David' : 'Zira';
-    speak(gender + " voice selected.");
+    speak(gender + " voice active.");
 }
 
-// Critical for Chrome voice loading
+// Fix for Chrome voice loading
 window.speechSynthesis.onvoiceschanged = () => { synth.getVoices(); };
