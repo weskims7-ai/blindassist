@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "VisionGuide AI",
+    "slug": "vision-guide-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "plugins": [
+      [
+        "react-native-ble-manager",
+        {
+          "isBleRequired": true,
+          "neverForLocation": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysPermission": "Allow VisionGuide to detect obstacles even when the screen is off."
+        }
+      ]
+    ],
+    "android": {
+      "package": "com.yourname.visionguide",
+      "permissions": [
+        "BLUETOOTH",
+        "BLUETOOTH_ADMIN",
+        "BLUETOOTH_SCAN",
+        "BLUETOOTH_CONNECT",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.yourname.visionguide",
+      "infoPlist": {
+        "UIBackgroundModes": ["location", "bluetooth-central", "audio"],
+        "NSBluetoothAlwaysUsageDescription": "This app uses Bluetooth to connect to your smart camera.",
+        "NSLocationAlwaysUsageDescription": "Required for navigation in background."
+      }
+    }
+  }
+}
