@@ -5,83 +5,86 @@ let isSystemActive = false;
 let audioCtx = null;
 
 /**
- * RECOMMENDATION 1: WAKE-UP TONE
- * Plays a quick beep to ensure Bluetooth speakers are "awake" 
- * and to confirm the audio engine is running.
- */
-function playWakeUpTone(frequency = 440, volume = 0.1) {
-    if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-    osc.frequency.value = frequency;
-    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.1);
-}
-
-/**
- * FIXED VOICE ENGINE
+ * LOUD AUDIO ENGINE
  */
 function speak(text) {
     if (!text) return;
+    synth.cancel(); // Interrupt old messages for safety
 
-    // Interrupt current speech for real-time safety
-    synth.cancel();
-
-    // Recommendation: Wake the hardware before speaking
-    playWakeUpTone(880, 0.05);
+    // Wake-up tone for Bluetooth
+    if (audioCtx && audioCtx.state === 'running') {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.frequency.value = 880;
+        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.1);
+    }
 
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = synth.getVoices();
-
-    // Select Voice
-    const target = voices.find(v => v.name.includes(selectedVoice)) || voices[0];
-    utterance.voice = target;
-
-    // Audio Quality Settings
-    utterance.volume = 1.0;  // Max Loudness
-    utterance.rate = 0.85;   // Clear pacing
+    utterance.voice = voices.find(v => v.name.includes(selectedVoice)) || voices[0];
+    
+    // Maximized for outdoor/Bluetooth use
+    utterance.volume = 1.0; 
+    utterance.rate = 0.85; 
     utterance.pitch = 1.0;
 
     synth.speak(utterance);
 }
 
 /**
- * INITIALIZATION
+ * INITIALIZATION (Fixed Camera & Audio Logic)
  */
 async function initApp() {
-    // REQUIRED: Resume AudioContext on click
+    const statusEl = document.getElementById('status-text');
+    
+    // 1. Force Audio Wake-up
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
-    await audioCtx.resume();
+    if (audioCtx.state === 'suspended') {
+        await audioCtx.resume();
+    }
 
-    speak("Initializing Vision System.");
+    statusEl.innerText = "STARTING...";
+    speak("Initializing camera. Please look for a permission popup.");
+
+    // 2. Flexible Camera Constraints
+    const constraints = {
+        video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: "environment" // Try back camera, falls back to front
+        }
+    };
 
     try {
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         const video = document.getElementById('v');
-        const stream = await navigator.mediaDevices.getUserMedia({ 
-            video: { facingMode: "environment" } 
-        });
         video.srcObject = stream;
+        
+        // Ensure video actually starts playing
+        video.onloadedmetadata = () => {
+            video.play();
+            isSystemActive = true;
+            statusEl.innerText = "AI ACTIVE";
+            statusEl.parentElement.style.borderColor = "#00f2ff";
+            speak("System ready. Vision monitoring is now live.");
+            startDetectionLoop();
+        };
 
-        isSystemActive = true;
-        document.getElementById('status-text').innerText = "AI ACTIVE";
-        
-        speak("System ready. Bluetooth link established. Monitoring path.");
-        
-        // Start the detection loop
-        startDetectionLoop();
     } catch (err) {
-        speak("System failure. Camera access denied.");
-        document.getElementById('status-text').innerText = "ERROR";
+        console.error("Camera Error:", err);
+        statusEl.innerText = "CAMERA ERROR";
+        speak("Camera failed. Please ensure you are using HTTPS and have granted permissions.");
     }
 }
 
 /**
- * AI DETECTION LOGIC
+ * AI DETECTION
  */
 async function analyzeObstacles() {
     if (!isSystemActive) return;
@@ -91,10 +94,10 @@ async function analyzeObstacles() {
     const context = c.getContext('2d');
 
     // Capture Frame
-    c.width = v.videoWidth;
-    c.height = v.videoHeight;
+    c.width = v.videoWidth || 640;
+    c.height = v.videoHeight || 480;
     context.drawImage(v, 0, 0);
-    const base64Image = c.toDataURL('image/jpeg').split(',')[1];
+    const base64Image = c.toDataURL('image/jpeg', 0.7).split(',')[1];
 
     try {
         const response = await fetch('/api/analyze', {
@@ -105,35 +108,29 @@ async function analyzeObstacles() {
 
         const data = await response.json();
         
-        // RECOMMENDATION 2: VERBAL ERROR HANDLING
-        if (!data.choices) {
-            speak("AI connection lost. Retrying.");
-            return;
+        if (data.choices && data.choices[0]) {
+            const aiDescription = data.choices[0].message.content;
+            
+            // Update Step Display
+            const steps = aiDescription.match(/\d+/);
+            if (steps) document.getElementById('step-count').innerText = steps[0];
+
+            speak(aiDescription);
         }
-
-        const aiDescription = data.choices[0].message.content;
-
-        // Update Dashboard
-        const stepMatch = aiDescription.match(/\d+/);
-        if (stepMatch) document.getElementById('step-count').innerText = stepMatch[0];
-
-        // Output Sound
-        speak(aiDescription);
-
     } catch (error) {
-        console.error("Fetch Error:", error);
+        console.error("AI Fetch Error:", error);
     }
 }
 
 function startDetectionLoop() {
-    // Run every 6 seconds to keep path updated
-    setInterval(analyzeObstacles, 6000);
+    // Run every 7 seconds for stability
+    setInterval(analyzeObstacles, 7000);
 }
 
 function setVoice(gender) {
     selectedVoice = (gender === 'male') ? 'David' : 'Zira';
-    speak(`${gender} voice active.`);
+    speak(gender + " voice selected.");
 }
 
-// Fix for Chrome voice loading
+// Critical for Chrome voice loading
 window.speechSynthesis.onvoiceschanged = () => { synth.getVoices(); };
