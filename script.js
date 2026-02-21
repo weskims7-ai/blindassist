@@ -1,60 +1,64 @@
+// --- CONFIGURATION ---
 let selectedVoice = "David"; 
 const synth = window.speechSynthesis;
 let isSystemActive = false;
-
-// Initialize Audio Context (don't start it yet)
-let audioCtx;
+let audioCtx = null;
 
 /**
- * VOICE ENGINE
+ * RECOMMENDATION 1: WAKE-UP TONE
+ * Plays a quick beep to ensure Bluetooth speakers are "awake" 
+ * and to confirm the audio engine is running.
+ */
+function playWakeUpTone(frequency = 440, volume = 0.1) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.value = frequency;
+    gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.1);
+}
+
+/**
+ * FIXED VOICE ENGINE
  */
 function speak(text) {
     if (!text) return;
 
-    // 1. Clear any pending speech
+    // Interrupt current speech for real-time safety
     synth.cancel();
 
-    // 2. Wake up Bluetooth/Audio hardware with a quick beep
-    if (audioCtx) {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.frequency.value = 880; 
-        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-        osc.start();
-        osc.stop(audioCtx.currentTime + 0.1);
-    }
+    // Recommendation: Wake the hardware before speaking
+    playWakeUpTone(880, 0.05);
 
-    // 3. Configure the Speech
     const utterance = new SpeechSynthesisUtterance(text);
     const voices = synth.getVoices();
 
-    // Find the voice or fallback to the first available
+    // Select Voice
     const target = voices.find(v => v.name.includes(selectedVoice)) || voices[0];
-    if (target) utterance.voice = target;
+    utterance.voice = target;
 
-    // LOUD AND CLEAR SETTINGS
-    utterance.volume = 1.0;  // Max Volume
-    utterance.rate = 0.85;   // Clarity speed
-    utterance.pitch = 1.1;   // High pitch for noise cutting
+    // Audio Quality Settings
+    utterance.volume = 1.0;  // Max Loudness
+    utterance.rate = 0.85;   // Clear pacing
+    utterance.pitch = 1.0;
 
     synth.speak(utterance);
 }
 
 /**
- * INITIALIZATION (Triggered by Button Click)
+ * INITIALIZATION
  */
 async function initApp() {
-    // MANDATORY: Resume audio context on user gesture
+    // REQUIRED: Resume AudioContext on click
     if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
-    if (audioCtx.state === 'suspended') {
-        await audioCtx.resume();
-    }
+    await audioCtx.resume();
 
-    speak("System starting.");
+    speak("Initializing Vision System.");
 
     try {
         const video = document.getElementById('v');
@@ -64,31 +68,32 @@ async function initApp() {
         video.srcObject = stream;
 
         isSystemActive = true;
-        document.getElementById('status-text').innerText = "AI Monitoring Active";
-        speak("System ready. Bluetooth connected.");
-
+        document.getElementById('status-text').innerText = "AI ACTIVE";
+        
+        speak("System ready. Bluetooth link established. Monitoring path.");
+        
+        // Start the detection loop
         startDetectionLoop();
     } catch (err) {
-        console.error(err);
-        speak("Camera failed. Please check permissions.");
+        speak("System failure. Camera access denied.");
+        document.getElementById('status-text').innerText = "ERROR";
     }
 }
 
 /**
- * VISION DETECTION
+ * AI DETECTION LOGIC
  */
 async function analyzeObstacles() {
     if (!isSystemActive) return;
 
     const v = document.getElementById('v');
     const c = document.getElementById('c');
-    if (!v || !c) return;
-
     const context = c.getContext('2d');
+
+    // Capture Frame
     c.width = v.videoWidth;
     c.height = v.videoHeight;
     context.drawImage(v, 0, 0);
-    
     const base64Image = c.toDataURL('image/jpeg').split(',')[1];
 
     try {
@@ -99,9 +104,16 @@ async function analyzeObstacles() {
         });
 
         const data = await response.json();
+        
+        // RECOMMENDATION 2: VERBAL ERROR HANDLING
+        if (!data.choices) {
+            speak("AI connection lost. Retrying.");
+            return;
+        }
+
         const aiDescription = data.choices[0].message.content;
 
-        // Update UI
+        // Update Dashboard
         const stepMatch = aiDescription.match(/\d+/);
         if (stepMatch) document.getElementById('step-count').innerText = stepMatch[0];
 
@@ -109,20 +121,19 @@ async function analyzeObstacles() {
         speak(aiDescription);
 
     } catch (error) {
-        console.error("AI Analysis failed:", error);
+        console.error("Fetch Error:", error);
     }
 }
 
 function startDetectionLoop() {
-    setInterval(analyzeObstacles, 7000);
+    // Run every 6 seconds to keep path updated
+    setInterval(analyzeObstacles, 6000);
 }
 
 function setVoice(gender) {
     selectedVoice = (gender === 'male') ? 'David' : 'Zira';
-    speak(`Voice set to ${gender}.`);
+    speak(`${gender} voice active.`);
 }
 
-// Critical for Chrome: ensures voices are loaded before first use
-window.speechSynthesis.onvoiceschanged = () => {
-    synth.getVoices();
-};
+// Fix for Chrome voice loading
+window.speechSynthesis.onvoiceschanged = () => { synth.getVoices(); };
