@@ -1,6 +1,6 @@
 body {
     margin: 0;
-    font-family: 'Segoe UI', sans-serif;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
     height: 100vh;
     display: flex;
     justify-content: center;
@@ -24,6 +24,7 @@ body {
 .glass-container {
     background: rgba(255, 255, 255, 0.05);
     backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px); /* Safari Support */
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 20px;
     padding: 40px;
@@ -45,14 +46,27 @@ body {
     border-radius: 15px;
     padding: 20px;
     cursor: pointer;
-    transition: 0.3s;
+    transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     color: white;
     text-decoration: none;
+    outline: none;
+}
+
+.tile h2 {
+    margin: 0 0 10px 0;
+    font-size: 1.2rem;
+}
+
+.tile p {
+    margin: 0;
+    font-size: 0.9rem;
+    opacity: 0.8;
 }
 
 .tile:hover {
     background: rgba(255, 255, 255, 0.2);
     transform: scale(1.05);
+    border-color: rgba(255, 255, 255, 0.4);
 }
 
 /* Animations */
@@ -65,3 +79,8 @@ body {
 .float-1 { animation: float 4s ease-in-out infinite; }
 .float-2 { animation: float 5s ease-in-out infinite; }
 .float-3 { animation: float 6s ease-in-out infinite; }
+
+/* Status Tile specific adjustments */
+.status-tile {
+    cursor: default;
+}
